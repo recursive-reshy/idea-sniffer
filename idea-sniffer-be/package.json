@@ -1,11 +1,11 @@
 {
   "name": "idea-sniffer-be",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "ts-node src/index.ts",
+    "dev": "nodemon",
     "build": "tsc",
     "start": "node dist/index.js"
   },
@@ -15,6 +15,7 @@
   "packageManager": "pnpm@10.33.0",
   "devDependencies": {
     "@types/node": "^25.5.2",
+    "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"
   },
