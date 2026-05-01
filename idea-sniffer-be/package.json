@@ -20,6 +20,7 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^4.20.1",
     "dotenv": "^17.4.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
