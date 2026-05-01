@@ -1,19 +1,16 @@
-import { config } from './config.js'
 import { logger } from './utils/logger.js'
 import { CacheManager } from './utils/cacheManager.js'
 import { appendBronze } from './utils/fileStore.js'
-import { RedditProvider } from './providers/reddit.js'
-import type { IProvider } from './types/provider.js'
+import { enabledProviders } from './providers.config.js'
 
 async function main() {
-  logger.info( { subreddits: config.subreddits }, 'Idea Sniffer starting' )
+  logger.info( 'Idea Sniffer starting' )
 
   const cache = new CacheManager()
-  const providers: IProvider[] = [ new RedditProvider() ]
 
   const runStats = { totalFetched: 0, skipped: 0, failed: 0, newStored: 0 }
 
-  for ( const provider of providers ) {
+  for ( const provider of enabledProviders ) {
     logger.info( { provider: provider.name }, 'Running provider' )
 
     let signals
