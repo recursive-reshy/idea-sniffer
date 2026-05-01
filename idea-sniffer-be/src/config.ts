@@ -10,7 +10,8 @@ function requireEnv( key: string ): string {
 }
 
 export const config = {
-  brightDataCdpUrl: requireEnv( 'BRIGHT_DATA_CDP_URL' ),
+  brightDataCdpUrl: process.env[ 'BRIGHT_DATA_CDP_URL' ] ?? '',
+  firecrawlApiKey: requireEnv( 'FIRECRAWL_API_KEY' ),
   subreddits: ( process.env[ 'SUBREDDITS' ] ?? 'SaaS,startups,webdev' )
     .split( ',' )
     .map( ( subReddit ) => subReddit.trim() )
@@ -21,4 +22,9 @@ export const config = {
   dataDir: path.resolve( './data/bronze' ),
   cachePath: path.resolve( './data/seen_ids.json' ),
   logsDir: path.resolve( './logs' ),
+  g2Products: ( process.env[ 'G2_PRODUCTS' ] ?? '' )
+    .split( ',' )
+    .map( ( s ) => s.trim() )
+    .filter( Boolean ),
+  g2PagesPerProduct: Number( process.env[ 'G2_PAGES_PER_PRODUCT' ] ?? 2 ),
 } as const
