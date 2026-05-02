@@ -15,7 +15,9 @@ interface G2Review {
 export class G2Provider implements IProvider {
   readonly name = 'g2'
   private readonly firecrawl = new FirecrawlApp( { apiKey: config.firecrawlApiKey } )
+  private BASE_URL = 'https://www.g2.com/products'
 
+  // Main fetch function to retrieve reviews from configured G2 products
   async fetch(): Promise< Signal[] > {
     if ( !config.g2Products.length ) {
       logger.warn( { provider: this.name }, 'No G2_PRODUCTS configured — skipping' )
@@ -25,6 +27,7 @@ export class G2Provider implements IProvider {
     const signals: Signal[] = []
 
     for ( const product of config.g2Products ) {
+      // Crawl each product page and extract reviews, applying error handling to ensure one failure doesn't stop the entire provider
       const productSignals = await this.fetchProduct( product )
       signals.push( ...productSignals )
       logger.info( { provider: this.name, product, count: productSignals.length }, 'Fetched G2 product' )
@@ -33,8 +36,9 @@ export class G2Provider implements IProvider {
     return signals
   }
 
+  // Function to crawl a G2 product's reviews and extract signals
   private async fetchProduct( productSlug: string ): Promise< Signal[] > {
-    const startUrl = `https://www.g2.com/products/${ productSlug }/reviews`
+    const startUrl = `${ this.BASE_URL }/${ productSlug }/reviews`
 
     logger.info( { provider: this.name, product: productSlug }, 'Starting Firecrawl crawl' )
 
@@ -47,7 +51,7 @@ export class G2Provider implements IProvider {
       },
     } )
 
-    if ( crawlResult.status !== 'completed' ) {
+    if ( crawlResult.status != 'completed' ) {
       logger.error( { provider: this.name, product: productSlug, status: crawlResult.status }, 'Firecrawl crawl failed' )
       return []
     }
@@ -55,15 +59,17 @@ export class G2Provider implements IProvider {
     const signals: Signal[] = []
 
     for ( const page of crawlResult.data ) {
+      // We do not want formats that are not markdown, as they won't contain the review text in a consistent format for parsing.
       if ( !page.markdown ) continue
 
       const reviews = this.parseReviews( page.markdown, productSlug )
-      signals.push( ...reviews.map( ( r ) => this.toSignal( r ) ) )
+      signals.push( ...reviews.map( ( review ) => this.toSignal( review ) ) )
     }
 
     return signals
   }
 
+  // Function to parse the markdown content of a G2 review page and extract individual reviews
   private parseReviews( markdown: string, productSlug: string ): G2Review[] {
     const reviews: G2Review[] = []
 
@@ -92,11 +98,12 @@ export class G2Provider implements IProvider {
     return reviews
   }
 
+  // Function to convert a G2Review into a standardized Signal format for storage and processing
   private toSignal( review: G2Review ): Signal {
     return {
       sourceId: `g2_${ review.productSlug }_${ review.id }`,
       rawText: review.dislikeText,
-      originUrl: `https://www.g2.com/products/${ review.productSlug }/reviews`,
+      originUrl: `${ this.BASE_URL }/${ review.productSlug }/reviews`,
       metadata: {
         likeText: review.likeText,
         productSlug: review.productSlug,
