@@ -1,6 +1,4 @@
-import { chromium } from 'playwright'
 import { config } from '../config.js'
-import { sleep, withRetry } from '../core/retry.js'
 import { logger } from '../utils/logger.js'
 import type { IProvider } from '../types/provider.js'
 import type { Signal } from '../types/signal.js'
@@ -20,75 +18,55 @@ export class RedditProvider implements IProvider {
   // Fetch latest posts from specified subreddits, applying rate limiting between requests
   async fetch(): Promise< Signal[] > {
 
-    // Connect to the browser via CDP, with retry logic and error handling
-    const browser = await withRetry(
-      () => chromium.connectOverCDP( config.brightDataCdpUrl ),
-      { provider: this.name, operation: 'connectOverCDP' },
-    ).catch( ( error ) => {
-      logger.error( { provider: this.name, error }, 'CDP connection failed — aborting. Never run without proxy.' )
-      throw error
-    } )
-
     const signals: Signal[] = []
 
     try {
-      for ( let i = 0; i < config.subreddits.length; i++ ) {
-        const subreddit = config.subreddits[ i ]!
-        if ( i > 0 ) {
-          logger.info( { provider: this.name, subreddit, delayMs: config.rateLimitMs }, 'Rate limiting — waiting' )
-          // Apply rate limiting between subreddit requests to avoid hitting Reddit's rate limits
-          await sleep( config.rateLimitMs )
-        }
-
-        const posts = await withRetry(
-          // Wrap the subreddit scraping in retry logic to handle transient errors
-          () => this.scrapeSubreddit( browser, subreddit ),
-          { provider: this.name, operation: `scrape:${ subreddit }` },
-        )
-
-        signals.push( ...posts )
-        logger.info( { provider: this.name, subreddit, count: posts.length }, 'Scraped subreddit' )
+      if( !config.subreddits.length ) {
+        logger.warn( { provider: this.name }, 'No SUBREDDITS configured — skipping' )
+        return []
       }
-    } finally {
-      await browser.close()
+
+      /** Construct payload for Bright data web scraper 
+       * i.e Stringified JSON
+       * input: { [
+       *  { "url": "https://www.reddit.com/r/freelance",
+       *    "sort_by": "", // Hot, New, Top, Rising
+       *    "sort_by_time":"", // Today, This Week, This Year, All Time
+       *    "keyword": "" // Optional param to filter posts by keyword in title or body
+       *    "start_date": "", // Optional param to filter posts by date range
+       *  }, 
+       * ] }
+      */
+
+      // TODO:Create payload interface
+      const payload = JSON.stringify( {
+        input: config.subreddits.map( ( subreddit ) => ( {
+          url: `https://www.reddit.com/r/${ subreddit }`,
+          sort_by: 'Hot' // TODO: Hardcoded for now, refactor when this is API enabled
+        } ) )
+      } )
+      
+      logger.info( { provider: this.name, payload }, 'Constructed Bright Data payload' )
+      
+      const result = await fetch(
+        config.brightDataRedditUrl,
+        { method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ config.brightDataApiKey }`,
+            'Content-Type': 'application/json'
+          },
+          body: payload
+        }
+      )
+
+      const snapshotId = await result.json()
+
+      logger.info( { provider: this.name, snapshotId }, 'Received data from Bright Data' )
+      
+    } catch( error ) {
+      logger.error( { provider: this.name, error, timestamp: new Date().toISOString() }, 'Failed to fetch from Reddit' )
     }
 
     return signals
-  }
-
-  // Scrape a single subreddit for new posts, extracting relevant data and formatting it as signals
-  private async scrapeSubreddit(
-    browser: Awaited< ReturnType< typeof chromium.connectOverCDP > >,
-    subreddit: string,
-  ): Promise< Signal[] > {
-    // Create a new browser context and page for scraping the subreddit
-    const context = await browser.newContext()
-    const page = await context.newPage()
-
-    try {
-      await page.goto( `https://www.reddit.com/r/${ subreddit }/new.json?limit=100`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      } )
-
-      const raw = await page.evaluate( () => document.body.innerText )
-      const json = JSON.parse( raw ) as { data: { children: Array< { data: RedditPost } > } }
-      const posts = json.data.children.map( ( child ) => child.data )
-
-      return posts.map( ( post ) => ( {
-        sourceId: post.id,
-        rawText: [ post.title, post.selftext ].filter( Boolean ).join( '\n\n' ),
-        originUrl: `https://www.reddit.com${ post.permalink }`,
-        metadata: {
-          score: post.score,
-          num_comments: post.num_comments,
-          subreddit,
-        },
-        fetchedAt: new Date().toISOString(),
-        provider: this.name,
-      } ) )
-    } finally {
-      await context.close()
-    }
   }
 }

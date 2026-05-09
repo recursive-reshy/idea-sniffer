@@ -10,9 +10,11 @@ function requireEnv( key: string ): string {
 }
 
 export const config = {
-  brightDataCdpUrl: process.env[ 'BRIGHT_DATA_CDP_URL' ] ?? '',
+  // TODO: I don't think this should be a env variable, probably should be in some endpoints file. Refactor
+  brightDataRedditUrl: process.env[ 'BRIGHT_DATA_REDDIT_URL' ] ?? '',
+  brightDataApiKey: requireEnv( 'BRIGHT_DATA_API_KEY' ),
   firecrawlApiKey: requireEnv( 'FIRECRAWL_API_KEY' ),
-  subreddits: ( process.env[ 'SUBREDDITS' ] ?? 'SaaS,startups,webdev' )
+  subreddits: ( process.env[ 'SUBREDDITS' ] ?? '' )
     .split( ',' )
     .map( ( subReddit ) => subReddit.trim() )
     .filter( Boolean ),
